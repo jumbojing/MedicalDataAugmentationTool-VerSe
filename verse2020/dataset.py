@@ -182,7 +182,7 @@ class Dataset(object):
             self.valid_landmarks_file = os.path.join(self.setup_base_folder, 'vertebrae_localization/valid_landmarks.csv')
 
     def iterator(self, id_list_filename, random):
-        """
+        """ 迭代器
         Iterator used for iterating over the dataset.
         If not self.generate_single_vertebrae or generate_single_vertebrae_heatmap: use id_list_filename
         else: use image_id and landmark_id tuples for all valid_landmarks per image
@@ -190,17 +190,25 @@ class Dataset(object):
         :param random: Shuffle if true.
         :return: IdListIterator used for image_id (and landmark_id) iteration.
         """
-        if self.generate_single_vertebrae or self.generate_single_vertebrae_heatmap:
+        # 若不是生成单个椎体或单个椎体热图,使用id列表文件名迭代
+        if self.generate_single_vertebrae or self.generate_single_vertebrae_heatmap: 
             valid_landmarks = utils.io.text.load_dict_csv(self.valid_landmarks_file, squeeze=False)
 
-            def whole_list_postprocessing(id_list):
+            def whole_list_postprocessing(id_list): 
+                ''' 全列表后处理
+                对id列表进行随机重采样
+                参: id_list - 原始id列表
+                1. 将所有有效标记的图像id和标记id组合成元组(image_id, landmark_id)列表tuples
+                2. 如果随机,则对tuples进行随机重采样
+
+                '''
                 new_id_list = []
                 for image_id in id_list:
                     for landmark in valid_landmarks[image_id[0]]:
                         new_id_list.append([image_id[0], landmark])
                 return new_id_list
 
-            if not random and not self.resample_iterator:
+            if not random and not self.resample_iterator: # 不随机且不重新采样迭代器
                 id_list_iterator = IdListIterator(id_list_filename,
                                                   random,
                                                   whole_list_postprocessing=whole_list_postprocessing,
@@ -212,7 +220,7 @@ class Dataset(object):
                 #     7-18: T1-12
                 #     19-24: L1-6
                 #     25: T13
-                def id_to_label_function(curr_id):
+                def id_to_label_function(curr_id): # 将标记id转换为标签
                     landmark_id = int(curr_id[1])
                     if 0 <= landmark_id <= 6:
                         return 'c'
@@ -237,33 +245,37 @@ class Dataset(object):
         return id_list_iterator
 
     def landmark_mask_preprocessing(self, image):
+        """ 路标罩预处理
+        创建一个1s的路标罩, 但卷的顶部和底部有25 mm的零.
+        参: image: sitkImg - 输入图像
+        返: mask:  sitkImg - 路标罩
         """
-        Creates a landmark mask of ones, but with 25 mm zeroes on the top and the bottom of the volumes.
-        :param image: The sitk input image
-        :return: A mask as an sitk image.
-        """
-        image_np = np.ones(list(reversed(image.GetSize())), np.uint8)
-        spacing_z = image.GetSpacing()[2]
-        # set 25 mm on top and bottom of image to 0
+        image_np    = np.ones(list(reversed(image.GetSize())), np.uint8) # 创建全1的np数组, 大小与图像一致(reversed Size to (z,y,x))
+        spacing_z   = image.GetSpacing()[2] # 获取z轴间距
+                            # 顶部和底部各25mm的零
         size = 25
-        image_np[:int(spacing_z * size), ...] = 0
-        image_np[-int(spacing_z * size):, ...] = 0
-        return utils.sitk_np.np_to_sitk(image_np)
+        image_np[:int(spacing_z * size), ...]\
+                    = 0
+        image_np[-int(spacing_z * size):, ...]\
+                    = 0
+        mask        = utils.sitk_np.np_to_sitk(image_np)
+                      # sitk.GetImageFromArray(image_np)
+        return        mask
 
     def datasources(self, iterator, image_cached, labels_cached, image_preprocessing, cache_size):
-        """
-        Returns the data sources that load data.
-        {
-        'image:' CachedImageDataSource that loads the image files.
-        'labels:' CachedImageDataSource that loads the groundtruth labels.
-        'landmarks:' LandmarkDataSource that loads the landmark coordinates.
-        }
-        :param iterator: The dataset iterator.
-        :param image_cached: If true, use CachedImageDataSource, else ImageDataSource for image datasource.
-        :param labels_cached: If true, use CachedImageDataSource, else ImageDataSource for labels datasource.
-        :param image_preprocessing: Preprocessing function for image datasource.
-        :param cache_size: The cache size for CachedImageDataSource.
-        :return: A dict of data sources.
+        """ 数据源
+        生成图像和标签数据源
+        参: ierator:                - id列表迭代器
+            image_cached:          - 图像缓存. 若True,则从缓存中读取图像, 否则直接读取
+            labels_cached:         - 标签缓存. 若True,则从缓存中读取标签, 否则直接读取
+            image_preprocessing:   - 图像预处理函数
+            cach_size:             - 缓存大小
+        返: 数据源典:
+            {
+            'image:' 缓存图源来自图像文件
+            'label:' 缓存标签源来自真罩
+            'landmark:' 缓存路标罩源来自路标的坐标
+            }
         """
         datasources_dict = {}
         if image_cached:
