@@ -27,14 +27,15 @@ from network import network_u, UnetClassicAvgLinear3d
 
 class MainLoop(MainLoopBase):
     def __init__(self, cv, network, unet, network_parameters, learning_rate, output_folder_name=''):
-        """
-        Initializer.
-        :param cv: The cv fold. 0, 1, 2 for CV; 'train_all' for training on whole dataset.
-        :param network: The used network. Usually network_u.
-        :param unet: The specific instance of the U-Net. Usually UnetClassicAvgLinear3d.
-        :param network_parameters: The network parameters passed to unet.
-        :param learning_rate: The initial learning rate.
-        :param output_folder_name: The output folder name that is used for distinguishing experiments.
+        """ 初始化主循环对象
+
+        参: cv:  - 交叉验证集. cv文件夹: 0,1,2; 'train_all' 所有数据用于训练
+            network:  - 网络模型名称. 'unet'
+            unet: - U-Net的具体实例。通常为UnetClassicAvgLinear3d.
+            network_parameters: - 网络模型参数字典. 包含 channels, kernel_size 等.
+            learing_rate: - 学习率
+            output_folder_name: - 输出文件夹名称,用于保存模型和日志文件
+        返: 主循环对象        
         """
         super().__init__()
         self.batch_size = 1
@@ -87,11 +88,11 @@ class MainLoop(MainLoopBase):
         self.additional_summaries_placeholders_val = dict([(name, create_summary_placeholder(name)) for name in self.point_statistics_names])
 
     def loss_function(self, pred, target):
-        """
-        L2 loss function calculated with prediction and target.
-        :param pred: The predicted image.
-        :param target: The target image.
-        :return: L2 loss of (pred - target) / batch_size
+        """ 损失函数
+        L2 loss + 预测值与真值的地标点之间的距离
+        参: pred    : - 预测图
+            targe   : - 真值图
+        返: L2 loss of (pred-target)/batch_size
         """
         batch_size, _, _ = get_batch_channel_image_size(pred, self.data_format)
         return tf.nn.l2_loss(pred - target) / batch_size

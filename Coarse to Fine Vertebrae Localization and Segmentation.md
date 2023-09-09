@@ -10,7 +10,9 @@
 > 3School of Computer Science, The University of Auckland, Auckland, New Zealand
 > Keywords: Vertebrae Localization, Vertebrae Segmentation, SpatialConfiguration-Net, U-Net, VerSe 2019 Challenge.
 
-## 摘要: 从脊柱CT体积中定位和分割椎体对于病理诊断、手术计划和术后评估至关重要。然而，由于病理的解剖变异、螺钉和植入物引起的噪音以及不同视野的大范围，脊柱CT体积的全自动分析是困难的。我们提出了一种基于全卷积神经网络的全自动脊椎定位和分割方法。在三步方法中，首先，U-Net定位脊椎的粗略位置。然后，空间配置网络使用热图回归进行椎骨定位和识别。最后，U-Net以高分辨率对每个识别的椎骨执行二进制分割，然后将各个预测合并到所产生的多标签椎骨分割中。评估显示，我们的方法表现最佳，排名第一，并赢得了MICCAI 2019大规模脊椎分割挑战赛（VerSe 2019）
+## 摘要: 
+
+从脊柱CT体积中定位和分割椎体对于病理诊断、手术计划和术后评估至关重要。然而，由于病理的解剖变异、螺钉和植入物引起的噪音以及不同视野的大范围，脊柱CT体积的全自动分析是困难的。我们提出了一种基于全卷积神经网络的全自动脊椎定位和分割方法。在三步方法中，首先，U-Net定位脊椎的粗略位置。然后，空间配置网络使用热图回归进行椎骨定位和识别。最后，U-Net以高分辨率对每个识别的椎骨执行二进制分割，然后将各个预测合并到所产生的多标签椎骨分割中。评估显示，我们的方法表现最佳，排名第一，并赢得了MICCAI 2019大规模脊椎分割挑战赛（VerSe 2019）
 
 > 关键词: 椎骨定位、椎骨分割、空间配置网络、U-Net、VerSe 2019 挑战赛。
 
@@ -35,6 +37,8 @@
 
 ### 1. 脊柱定位
 
+![Fig_2](image-2.png)
+
 由于视野的变化，脊柱CT体积通常包含许多不包含有用信息的背景，而脊柱可能不在体积的中心。为了确保脊椎在随后的脊椎定位步骤的输入处居中，作为第一步，我们预测脊椎的近似$x$和$y$坐标$\hat{x}_{spine} \in R^2$。为了定位$\hat{x}_{spine}$，我们使用U-Net的变体（Ronneberger等人，2015）来执行脊柱中心线（即通过所有脊椎质心的线）的热图回归（Tompson等人，2014；Payer等人，2016）。目标热图体积$h_{spine}(x;\sigma_{spine}):R^3 \rightarrow R$是通过将所有单个椎骨目标坐标$\hat{x}_i$的大小为$\sigma_{spine}$的高斯热图合并到单个体积中而生成的（见图2）。我们使用L2-Loss来最小化目标热图体积$h_{spine}$和预测热图体积$\hat{h}_{spine}(x: \sigma_{spine}):R^3 \rightarrow R$之间的差异。最终预测的脊椎坐标为$\hat{x}_{spine}$的质心的$x$和$y$坐标。
 
 我们对U-Net的变体进行了调整，使其执行平均而不是最大池化，并执行线性上采样而不是转置卷积。它使用五个级别，其中每个卷积层具有$[3 \times 3 \times 3]$的内核大小和64个滤波器输出。此外，卷积层使用零填充，使得网络输入和输出大小保持相同。
@@ -42,6 +46,8 @@
 在处理脊椎CT体积之前，将其重采样为8 mm的均匀体素间距，并以网络输入为中心。网络输入分辨率为[64×64×128]，允许范围高达[512×512×1024]mm的脊柱CT体积适应网络输入。该范围足以使网络预测评估数据集的所有脊柱CT体积的$x_{spine}$。
 
 ### 2. 椎体定位
+
+![Fig_3](image-1.png)
 
 为了定位椎体，我们使用（Payer等人，2019）中提出的空间配置网络（SC-Net）。该网络有效地将标记的局部外观与其空间配置相结合。网络的局部外观部分使用五个级别，每个级别包含两个卷积层，然后降采样到较低级别，然后是两个卷积层，然后与上采样的较低级别连接。每个卷积层使用泄漏的ReLU激活函数，并具有[3×3×3]和64个滤波器输出的内核大小。空间配置部分由四个卷积组成，内核大小为[7×7×7]，并以一行处理，以局部外观部分的四分之一分辨率进行处理。SC-Net执行N目标椎体$v_i$的热图回归，即每个目标坐标$\hat{x}_i$表示为以$\hat{x}_i$为中心的高斯热图体积$h_i(x;\sigma_i):R^3 \rightarrow R$。对于N目标椎体$v_i$，网络同时预测所有N个输出热图体积$\hat{h}_i(x):R^3 \rightarrow R$。作为损失函数，我们使用修改后的L2-Loss函数，该函数还允许学习目标高斯热图体积$\hat{h}_i$的单独$\sigma_i$值：
 
@@ -60,42 +66,14 @@ $$
 
 我们预测最终的地标坐标$\hat{x}$如下：对于每个预测的热图体积，我们检测到高于特定阈值的多个局部热图最大值。然后，我们通过分别获取最接近体积顶部或底部的最大值的热图来确定体积上可见的第一块和最后一块椎骨。我们通过采用不违反以下条件的序列来确定最终预测的界标序列：连续椎骨可能不小于12.5 mm，距离不大于50 mm，以及以下界标可能不在前一个界标之上。
 
+### 3. 椎体分割
 
-A schematic representation of how the input volumes are processed to predict all heatmaps hˆ
-i
-is shown
-in Fig. 3. Each network input volume is resampled
-to have a uniform voxel spacing of 2 mm, while the
-network is set up for inputs of size [96 × 96 × 128],
-which allows volumes with an extent of [192×192×
-256] mm to fit into the network. With this extent,
-many images of the dataset do not fit into the network and cannot be processed at once. To narrow the
-processed volume to the approximate location of the
-spine, we center the network input at the predicted
-spine coordinate xˆspine (see Sec. 2.1). Furthermore,
-as some spine CT volumes have a larger extent in the
-z-axis (i.e., the axis perpendicular to the axial plane)
-that would not fit into the network, we process such
-volumes the same way as proposed by (Payer et al.,
-2019). During training, we crop a subvolume at a random position at the z-axis. During inference, we split
-the volumes at the z-axis into multiple subvolumes
-that overlap for 96 pixels, and process them one after
-another. Then, we merge the network predictions of
-the overlapping subvolumes by taking the maximum
-response over all predictions.
-We predict the final landmark coordinates xˆ as follows: For each predicted heatmap volume, we detect
-multiple local heatmap maxima that are above a certain threshold. Then, we determine the first and last
-vertebrae that are visible on the volume by taking the
-heatmap with the largest value that is closest to the
-volume top or bottom, respectively. We identify the
-final predicted landmark sequence by taking the sequence that does not violate the following conditions:
-consecutive vertebrae may not be closer than 12.5 mm
-and farther away than 50 mm, as well as the following
-landmark may not be above a previous one.
 
 
 
 2.3 Vertebrae Segmentation
+
+
 For creating the final vertebrae segmentation, we use
 a U-Net (Ronneberger et al., 2015) set up for binary
 segmentation to separate a vertebra from the background (see Fig. 4). The final semantic label of a
